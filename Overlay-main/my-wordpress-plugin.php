@@ -3,7 +3,7 @@
  * Plugin Name:       Product Customizer for WooCommerce
  * Plugin URI:        https://github.com/Sapersteinindustrys/Overlay
  * Description:       A comprehensive product customizer for WooCommerce. Allows admins to create detailed customization options for products, which customers can use via a frontend modal.
- * Version:           3.1.9
+ * Version:           3.1.10
  * Author:            Saperstein T. Industries
  * Author URI:        https://github.com/Sapersteinindustrys
  * License:           GPL v2 or later
@@ -23,7 +23,7 @@ final class Product_Customizer_Plugin {
     /**
      * Plugin version.
      */
-    public $version = '3.1.9';
+    public $version = '3.1.10';
 
     /**
      * The single instance of the class.
