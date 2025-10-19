@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) {
 }
 
 class PC_Admin_Dashboard {
-    private const MENU_SLUG = 'product-customizer-settings';
+    private const MENU_SLUG = 'pc-control-center';
     private const NOTICE_TRANSIENT = 'pc_admin_settings_notice';
 
     public function __construct() {
@@ -474,6 +474,6 @@ class PC_Admin_Dashboard {
     }
 
     private function get_required_capability() {
-        return class_exists('WooCommerce') ? 'manage_woocommerce' : 'manage_options';
+        return current_user_can('manage_woocommerce') ? 'manage_woocommerce' : 'manage_options';
     }
 }
