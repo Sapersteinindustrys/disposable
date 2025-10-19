@@ -293,3 +293,140 @@
         justify-content: center;
     }
 }
+
+.pc-library-layout {
+    display: grid;
+    gap: 24px;
+}
+
+@media (min-width: 1024px) {
+    .pc-library-layout {
+        grid-template-columns: 1.35fr 1fr;
+        align-items: start;
+    }
+}
+
+.pc-library-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+.pc-library-table th,
+.pc-library-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--pc-admin-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.pc-library-table th {
+    font-weight: 600;
+    color: var(--pc-admin-text-muted);
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+}
+
+.pc-library-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.pc-library-option-name {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--pc-admin-text-muted);
+}
+
+.pc-library-actions-col {
+    width: 140px;
+}
+
+.pc-library-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pc-library-action {
+    text-decoration: none;
+}
+
+.pc-library-inline-form {
+    display: inline;
+}
+
+.pc-library-delete {
+    color: #d63638;
+}
+
+.pc-library-empty {
+    margin: 0;
+    color: var(--pc-admin-text-muted);
+}
+
+.pc-library-choices {
+    margin-top: 12px;
+    border-top: 1px solid var(--pc-admin-border);
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.pc-library-choices__items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pc-library-choice {
+    border: 1px solid var(--pc-admin-border);
+    border-radius: 12px;
+    padding: 16px;
+    background: rgba(244, 246, 252, 0.6);
+}
+
+.pc-library-choice__grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.pc-library-field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.pc-library-field--actions {
+    align-self: end;
+}
+
+.pc-library-field--actions .pc-library-remove-choice {
+    color: #d63638;
+}
+
+.pc-library-form__body {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.pc-library-field--toggle label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pc-library-field--toggle label span {
+    font-weight: 600;
+}
+
+.pc-library-field--image {
+    display: none;
+}
+
+.pc-library-choices.show-images .pc-library-field--image {
+    display: block;
+}

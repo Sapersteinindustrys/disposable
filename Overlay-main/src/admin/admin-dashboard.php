@@ -11,6 +11,7 @@ class PC_Admin_Dashboard {
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('admin_post_pc_save_settings', [$this, 'handle_form_submission']);
+        add_action('admin_post_pc_delete_library_entry', [$this, 'handle_delete_library_entry']);
     }
 
     public function register_menu() {
@@ -35,7 +36,12 @@ class PC_Admin_Dashboard {
     }
 
     public function enqueue_assets($hook) {
-        if ($hook !== 'toplevel_page_' . self::MENU_SLUG) {
+        $allowed_hooks = [
+            'toplevel_page_' . self::MENU_SLUG,
+            'woocommerce_page_' . self::MENU_SLUG,
+        ];
+
+        if (!in_array($hook, $allowed_hooks, true)) {
             return;
         }
 
@@ -56,6 +62,14 @@ class PC_Admin_Dashboard {
         wp_enqueue_script(
             'pc-admin-dashboard',
             PC_PLUGIN_URL . 'src/assets/js/admin-dashboard.js',
+            ['jquery'],
+            PC_VERSION,
+            true
+        );
+
+        wp_enqueue_script(
+            'pc-admin-library',
+            PC_PLUGIN_URL . 'src/assets/js/admin-library.js',
             ['jquery'],
             PC_VERSION,
             true
@@ -83,8 +97,40 @@ class PC_Admin_Dashboard {
 
         $wizard_url = admin_url('admin.php?page=pc-setup-wizard');
         $design_studio_url = admin_url('admin.php?page=wc-settings&tab=product_customizer&section=design');
+
+        $library_manager = PC_Library_Manager::instance();
+        $library_items = $library_manager->get_items();
+        $library_edit_id = isset($_GET['pc_library_edit']) ? absint($_GET['pc_library_edit']) : 0;
+        $library_entry = $library_edit_id ? $library_manager->get_item($library_edit_id) : null;
+        $library_defaults = [
+            'id' => 0,
+            'option_name' => '',
+            'option_label' => '',
+            'option_type' => 'text',
+            'is_required' => false,
+            'help_text' => '',
+            'choices' => [],
+            'product_name' => '',
+            'product_variation' => '',
+        ];
+
+        if (!is_array($library_entry)) {
+            $library_entry = $library_defaults;
+        } else {
+            $library_entry = array_merge($library_defaults, $library_entry);
+        }
+
+        $panel_param = isset($_GET['pc_panel']) ? sanitize_key($_GET['pc_panel']) : '';
+        $valid_panels = ['general', 'appearance', 'behavior', 'library', 'licensing', 'shortcuts'];
+        if ($panel_param && in_array($panel_param, $valid_panels, true)) {
+            $active_panel = 'pc-panel-' . $panel_param;
+        } elseif ($library_entry['id'] > 0) {
+            $active_panel = 'pc-panel-library';
+        } else {
+            $active_panel = 'pc-panel-general';
+        }
         ?>
-        <div class="wrap pc-admin-dashboard">
+    <div class="wrap pc-admin-dashboard" data-pc-active-panel="<?php echo esc_attr($active_panel); ?>">
             <h1><?php esc_html_e('Product Customizer Control Center', 'product-customizer-for-woocommerce'); ?></h1>
             <p class="pc-admin-subtitle"><?php esc_html_e('Your launchpad for keeping customization polished, on-brand, and stress-free.', 'product-customizer-for-woocommerce'); ?></p>
 
@@ -96,30 +142,34 @@ class PC_Admin_Dashboard {
 
             <div class="pc-admin-layout">
                 <nav class="pc-admin-nav" aria-label="<?php esc_attr_e('Settings sections', 'product-customizer-for-woocommerce'); ?>">
-                    <button type="button" class="pc-admin-nav__link is-active" data-target="pc-panel-general">
+                    <button type="button" class="pc-admin-nav__link <?php echo $active_panel === 'pc-panel-general' ? 'is-active' : ''; ?>" data-target="pc-panel-general">
                         <span class="dashicons dashicons-controls-repeat" aria-hidden="true"></span>
                         <?php esc_html_e('General', 'product-customizer-for-woocommerce'); ?>
                     </button>
-                    <button type="button" class="pc-admin-nav__link" data-target="pc-panel-appearance">
+                    <button type="button" class="pc-admin-nav__link <?php echo $active_panel === 'pc-panel-appearance' ? 'is-active' : ''; ?>" data-target="pc-panel-appearance">
                         <span class="dashicons dashicons-art" aria-hidden="true"></span>
                         <?php esc_html_e('Appearance', 'product-customizer-for-woocommerce'); ?>
                     </button>
-                    <button type="button" class="pc-admin-nav__link" data-target="pc-panel-behavior">
+                    <button type="button" class="pc-admin-nav__link <?php echo $active_panel === 'pc-panel-behavior' ? 'is-active' : ''; ?>" data-target="pc-panel-behavior">
                         <span class="dashicons dashicons-admin-settings" aria-hidden="true"></span>
                         <?php esc_html_e('Behavior', 'product-customizer-for-woocommerce'); ?>
                     </button>
-                    <button type="button" class="pc-admin-nav__link" data-target="pc-panel-licensing">
+                    <button type="button" class="pc-admin-nav__link <?php echo $active_panel === 'pc-panel-library' ? 'is-active' : ''; ?>" data-target="pc-panel-library">
+                        <span class="dashicons dashicons-portfolio" aria-hidden="true"></span>
+                        <?php esc_html_e('Library', 'product-customizer-for-woocommerce'); ?>
+                    </button>
+                    <button type="button" class="pc-admin-nav__link <?php echo $active_panel === 'pc-panel-licensing' ? 'is-active' : ''; ?>" data-target="pc-panel-licensing">
                         <span class="dashicons dashicons-lock" aria-hidden="true"></span>
                         <?php esc_html_e('Licensing', 'product-customizer-for-woocommerce'); ?>
                     </button>
-                    <button type="button" class="pc-admin-nav__link" data-target="pc-panel-shortcuts">
+                    <button type="button" class="pc-admin-nav__link <?php echo $active_panel === 'pc-panel-shortcuts' ? 'is-active' : ''; ?>" data-target="pc-panel-shortcuts">
                         <span class="dashicons dashicons-lightbulb" aria-hidden="true"></span>
                         <?php esc_html_e('Shortcuts', 'product-customizer-for-woocommerce'); ?>
                     </button>
                 </nav>
 
                 <main class="pc-admin-panels" id="pc-admin-panels">
-                    <section class="pc-admin-panel is-active" id="pc-panel-general" tabindex="-1">
+                    <section class="pc-admin-panel <?php echo $active_panel === 'pc-panel-general' ? 'is-active' : ''; ?>" id="pc-panel-general" tabindex="-1">
                         <header>
                             <h2><?php esc_html_e('General Experience', 'product-customizer-for-woocommerce'); ?></h2>
                             <p><?php esc_html_e('Fine-tune the language customers see the moment they step into your customization journey.', 'product-customizer-for-woocommerce'); ?></p>
@@ -159,7 +209,7 @@ class PC_Admin_Dashboard {
                         </form>
                     </section>
 
-                    <section class="pc-admin-panel" id="pc-panel-appearance" tabindex="-1">
+                    <section class="pc-admin-panel <?php echo $active_panel === 'pc-panel-appearance' ? 'is-active' : ''; ?>" id="pc-panel-appearance" tabindex="-1">
                         <header>
                             <h2><?php esc_html_e('Appearance & Layout', 'product-customizer-for-woocommerce'); ?></h2>
                             <p><?php esc_html_e('Keep the customization overlay bold, branded, and effortless to scan.', 'product-customizer-for-woocommerce'); ?></p>
@@ -221,7 +271,7 @@ class PC_Admin_Dashboard {
                         </form>
                     </section>
 
-                    <section class="pc-admin-panel" id="pc-panel-behavior" tabindex="-1">
+                    <section class="pc-admin-panel <?php echo $active_panel === 'pc-panel-behavior' ? 'is-active' : ''; ?>" id="pc-panel-behavior" tabindex="-1">
                         <header>
                             <h2><?php esc_html_e('Interaction Behavior', 'product-customizer-for-woocommerce'); ?></h2>
                             <p><?php esc_html_e('Keep momentum high with thoughtful defaults and friendly safety nets.', 'product-customizer-for-woocommerce'); ?></p>
@@ -242,7 +292,131 @@ class PC_Admin_Dashboard {
                         </form>
                     </section>
 
-                    <section class="pc-admin-panel" id="pc-panel-licensing" tabindex="-1">
+                    <section class="pc-admin-panel <?php echo $active_panel === 'pc-panel-library' ? 'is-active' : ''; ?>" id="pc-panel-library" tabindex="-1">
+                        <header>
+                            <h2><?php esc_html_e('Reusable Option Library', 'product-customizer-for-woocommerce'); ?></h2>
+                            <p><?php esc_html_e('Curate ready-made options, note the product and variation they came from, and reuse them across your catalog in seconds.', 'product-customizer-for-woocommerce'); ?></p>
+                        </header>
+                        <div class="pc-library-layout">
+                            <div class="pc-card pc-library-card">
+                                <div class="pc-card__body pc-library-list">
+                                    <?php if (empty($library_items)) : ?>
+                                        <p class="pc-library-empty"><?php esc_html_e('No saved options yet. Use the form to add your first library entry.', 'product-customizer-for-woocommerce'); ?></p>
+                                    <?php else : ?>
+                                        <table class="pc-library-table">
+                                            <thead>
+                                                <tr>
+                                                    <th><?php esc_html_e('Option Label', 'product-customizer-for-woocommerce'); ?></th>
+                                                    <th><?php esc_html_e('Type', 'product-customizer-for-woocommerce'); ?></th>
+                                                    <th><?php esc_html_e('Source Product', 'product-customizer-for-woocommerce'); ?></th>
+                                                    <th><?php esc_html_e('Variation Details', 'product-customizer-for-woocommerce'); ?></th>
+                                                    <th><?php esc_html_e('Updated', 'product-customizer-for-woocommerce'); ?></th>
+                                                    <th class="pc-library-actions-col"><?php esc_html_e('Actions', 'product-customizer-for-woocommerce'); ?></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($library_items as $item) : ?>
+                                                    <tr>
+                                                        <td>
+                                                            <strong><?php echo esc_html($item['option_label']); ?></strong>
+                                                            <div class="pc-library-option-name">/<?php echo esc_html($item['option_name']); ?>/</div>
+                                                        </td>
+                                                        <td><?php echo esc_html(ucfirst($item['option_type'])); ?></td>
+                                                        <td><?php echo $item['product_name'] !== '' ? esc_html($item['product_name']) : '&#8212;'; ?></td>
+                                                        <td><?php echo $item['product_variation'] !== '' ? esc_html($item['product_variation']) : '&#8212;'; ?></td>
+                                                        <td><?php echo esc_html($this->format_datetime($item['updated_at'])); ?></td>
+                                                        <td class="pc-library-actions">
+                                                            <a class="pc-library-action" href="<?php echo esc_url(add_query_arg(['pc_panel' => 'library', 'pc_library_edit' => $item['id']], $this->get_dashboard_url())); ?>"><?php esc_html_e('Edit', 'product-customizer-for-woocommerce'); ?></a>
+                                                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="pc-library-inline-form" onsubmit="return confirm('<?php echo esc_js(__('Delete this library entry?', 'product-customizer-for-woocommerce')); ?>');">
+                                                                <?php wp_nonce_field('pc_delete_library_' . $item['id']); ?>
+                                                                <input type="hidden" name="action" value="pc_delete_library_entry">
+                                                                <input type="hidden" name="pc_library_entry_id" value="<?php echo esc_attr($item['id']); ?>">
+                                                                <button type="submit" class="button-link delete pc-library-delete"><?php esc_html_e('Delete', 'product-customizer-for-woocommerce'); ?></button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="pc-card pc-library-form">
+                                <?php wp_nonce_field('pc_save_settings_library'); ?>
+                                <input type="hidden" name="action" value="pc_save_settings">
+                                <input type="hidden" name="pc_settings_section" value="library">
+                                <input type="hidden" name="pc_library_entry_id" value="<?php echo esc_attr($library_entry['id']); ?>">
+
+                                <div class="pc-card__body pc-library-form__body">
+                                    <div class="pc-field">
+                                        <label for="pc_library_option_label"><?php esc_html_e('Option Label', 'product-customizer-for-woocommerce'); ?></label>
+                                        <input type="text" id="pc_library_option_label" name="pc_library_option_label" class="regular-text" value="<?php echo esc_attr($library_entry['option_label']); ?>" required>
+                                        <p class="description"><?php esc_html_e('Customer-facing name of this option.', 'product-customizer-for-woocommerce'); ?></p>
+                                    </div>
+                                    <div class="pc-field">
+                                        <label for="pc_library_option_name"><?php esc_html_e('Option Name (slug)', 'product-customizer-for-woocommerce'); ?></label>
+                                        <input type="text" id="pc_library_option_name" name="pc_library_option_name" class="regular-text" value="<?php echo esc_attr($library_entry['option_name']); ?>" placeholder="engraving_text" required>
+                                        <p class="description"><?php esc_html_e('Used internally. Lowercase letters, numbers, dashes, or underscores.', 'product-customizer-for-woocommerce'); ?></p>
+                                    </div>
+                                    <div class="pc-field">
+                                        <label for="pc_library_option_type"><?php esc_html_e('Option Type', 'product-customizer-for-woocommerce'); ?></label>
+                                        <select id="pc_library_option_type" name="pc_library_option_type" class="pc-library-type-select">
+                                            <option value="text" <?php selected($library_entry['option_type'], 'text'); ?>><?php esc_html_e('Text Input', 'product-customizer-for-woocommerce'); ?></option>
+                                            <option value="number" <?php selected($library_entry['option_type'], 'number'); ?>><?php esc_html_e('Number Input', 'product-customizer-for-woocommerce'); ?></option>
+                                            <option value="dropdown" <?php selected($library_entry['option_type'], 'dropdown'); ?>><?php esc_html_e('Dropdown Select', 'product-customizer-for-woocommerce'); ?></option>
+                                            <option value="radio" <?php selected($library_entry['option_type'], 'radio'); ?>><?php esc_html_e('Radio Buttons', 'product-customizer-for-woocommerce'); ?></option>
+                                            <option value="checkbox" <?php selected($library_entry['option_type'], 'checkbox'); ?>><?php esc_html_e('Checkboxes', 'product-customizer-for-woocommerce'); ?></option>
+                                            <option value="swatch" <?php selected($library_entry['option_type'], 'swatch'); ?>><?php esc_html_e('Image Swatches', 'product-customizer-for-woocommerce'); ?></option>
+                                        </select>
+                                    </div>
+                                    <div class="pc-field pc-field--inline">
+                                        <label for="pc_library_product_name"><?php esc_html_e('Source Product Name', 'product-customizer-for-woocommerce'); ?></label>
+                                        <input type="text" id="pc_library_product_name" name="pc_library_product_name" class="regular-text" value="<?php echo esc_attr($library_entry['product_name']); ?>" placeholder="<?php esc_attr_e('Product or template reference', 'product-customizer-for-woocommerce'); ?>">
+                                    </div>
+                                    <div class="pc-field pc-field--inline">
+                                        <label for="pc_library_product_variation"><?php esc_html_e('Variation Details', 'product-customizer-for-woocommerce'); ?></label>
+                                        <input type="text" id="pc_library_product_variation" name="pc_library_product_variation" class="regular-text" value="<?php echo esc_attr($library_entry['product_variation']); ?>" placeholder="<?php esc_attr_e('Color / Size / SKU reference', 'product-customizer-for-woocommerce'); ?>">
+                                    </div>
+                                    <div class="pc-field pc-field--toggle">
+                                        <label>
+                                            <input type="checkbox" name="pc_library_is_required" value="1" <?php checked($library_entry['is_required']); ?>>
+                                            <span><?php esc_html_e('Required option', 'product-customizer-for-woocommerce'); ?></span>
+                                        </label>
+                                    </div>
+                                    <div class="pc-field">
+                                        <label for="pc_library_help_text"><?php esc_html_e('Help Text', 'product-customizer-for-woocommerce'); ?></label>
+                                        <textarea id="pc_library_help_text" name="pc_library_help_text" rows="3" class="large-text" placeholder="<?php esc_attr_e('Short guidance shown beneath the field.', 'product-customizer-for-woocommerce'); ?>"><?php echo esc_textarea($library_entry['help_text']); ?></textarea>
+                                    </div>
+
+                                    <?php $library_show_choices = in_array($library_entry['option_type'], ['dropdown', 'radio', 'checkbox', 'swatch'], true); ?>
+                                    <div class="pc-library-choices" data-show-choice-types="dropdown,radio,checkbox,swatch" style="<?php echo $library_show_choices ? '' : 'display:none;'; ?>">
+                                        <h3><?php esc_html_e('Choices', 'product-customizer-for-woocommerce'); ?></h3>
+                                        <div class="pc-library-choices__items" data-next-index="<?php echo esc_attr($this->calculate_next_choice_index($library_entry['choices'])); ?>">
+                                            <?php echo $this->render_library_choice_fields($library_entry['choices']); ?>
+                                        </div>
+                                        <button type="button" class="button button-secondary pc-library-add-choice"><?php esc_html_e('Add Choice', 'product-customizer-for-woocommerce'); ?></button>
+                                        <p class="description"><?php esc_html_e('Choices appear for dropdowns, radios, checkboxes, and swatches. Include at least one label.', 'product-customizer-for-woocommerce'); ?></p>
+                                    </div>
+                                </div>
+
+                                <footer class="pc-card__footer">
+                                    <button type="submit" class="button button-primary">
+                                        <?php echo $library_entry['id'] ? esc_html__('Update Library Entry', 'product-customizer-for-woocommerce') : esc_html__('Add to Library', 'product-customizer-for-woocommerce'); ?>
+                                    </button>
+                                    <?php if ($library_entry['id']) : ?>
+                                        <a href="<?php echo esc_url(add_query_arg(['pc_panel' => 'library'], $this->get_dashboard_url())); ?>" class="button button-link"><?php esc_html_e('Cancel', 'product-customizer-for-woocommerce'); ?></a>
+                                    <?php endif; ?>
+                                </footer>
+
+                                <template id="pc-library-choice-template">
+                                    <?php echo $this->render_library_choice_row('__INDEX__', ['label' => '', 'value' => '', 'price' => '', 'default' => false, 'image_url' => '']); ?>
+                                </template>
+                            </form>
+                        </div>
+                    </section>
+
+                    <section class="pc-admin-panel <?php echo $active_panel === 'pc-panel-licensing' ? 'is-active' : ''; ?>" id="pc-panel-licensing" tabindex="-1">
                         <header>
                             <h2><?php esc_html_e('Premium Licensing', 'product-customizer-for-woocommerce'); ?></h2>
                             <p><?php esc_html_e('Activate, refresh, or troubleshoot your premium access in one calm view.', 'product-customizer-for-woocommerce'); ?></p>
@@ -284,7 +458,7 @@ class PC_Admin_Dashboard {
                         </div>
                     </section>
 
-                    <section class="pc-admin-panel" id="pc-panel-shortcuts" tabindex="-1">
+                    <section class="pc-admin-panel <?php echo $active_panel === 'pc-panel-shortcuts' ? 'is-active' : ''; ?>" id="pc-panel-shortcuts" tabindex="-1">
                         <header>
                             <h2><?php esc_html_e('Shortcuts & Guidance', 'product-customizer-for-woocommerce'); ?></h2>
                             <p><?php esc_html_e('Need a refresher or want to see the onboarding again? Everything is a click away.', 'product-customizer-for-woocommerce'); ?></p>
@@ -326,7 +500,8 @@ class PC_Admin_Dashboard {
             wp_die(__('You do not have permission to update these settings.', 'product-customizer-for-woocommerce'));
         }
 
-        $section = isset($_POST['pc_settings_section']) ? sanitize_key($_POST['pc_settings_section']) : '';
+    $section = isset($_POST['pc_settings_section']) ? sanitize_key($_POST['pc_settings_section']) : '';
+    $redirect = $this->get_dashboard_url();
 
         if ($section === '') {
             wp_safe_redirect($this->get_dashboard_url());
@@ -348,6 +523,14 @@ class PC_Admin_Dashboard {
                 $this->save_behavior_settings();
                 $this->set_flash(__('Behavior settings updated.', 'product-customizer-for-woocommerce'));
                 break;
+            case 'library':
+                $library_result = $this->save_library_settings();
+                $this->set_flash($library_result['message'], $library_result['success'] ? 'success' : 'error');
+                $redirect = add_query_arg('pc_panel', 'library', $this->get_dashboard_url());
+                if (!$library_result['success'] && !empty($library_result['entry_id'])) {
+                    $redirect = add_query_arg('pc_library_edit', (int) $library_result['entry_id'], $redirect);
+                }
+                break;
             case 'licensing':
                 $this->save_licensing_settings();
                 $this->set_flash(__('License saved. We are syncing with the licensing server now.', 'product-customizer-for-woocommerce'));
@@ -356,7 +539,30 @@ class PC_Admin_Dashboard {
                 break;
         }
 
-        wp_safe_redirect($this->get_dashboard_url());
+        wp_safe_redirect($redirect);
+        exit;
+    }
+
+    public function handle_delete_library_entry() {
+        if (!current_user_can($this->get_required_capability())) {
+            wp_die(__('You do not have permission to update these settings.', 'product-customizer-for-woocommerce'));
+        }
+
+        $entry_id = isset($_POST['pc_library_entry_id']) ? absint($_POST['pc_library_entry_id']) : 0;
+        if ($entry_id <= 0) {
+            wp_safe_redirect(add_query_arg('pc_panel', 'library', $this->get_dashboard_url()));
+            exit;
+        }
+
+        check_admin_referer('pc_delete_library_' . $entry_id);
+
+        $deleted = PC_Library_Manager::instance()->delete_item($entry_id);
+        $this->set_flash(
+            $deleted ? __('Library entry deleted.', 'product-customizer-for-woocommerce') : __('Could not delete the library entry. Please try again.', 'product-customizer-for-woocommerce'),
+            $deleted ? 'success' : 'error'
+        );
+
+        wp_safe_redirect(add_query_arg('pc_panel', 'library', $this->get_dashboard_url()));
         exit;
     }
 
@@ -406,6 +612,68 @@ class PC_Admin_Dashboard {
             $value = isset($_POST[$option]) ? 'yes' : 'no';
             update_option($option, $value);
         }
+    }
+
+    private function save_library_settings() {
+        $entry_id = isset($_POST['pc_library_entry_id']) ? absint($_POST['pc_library_entry_id']) : 0;
+        $option_label = isset($_POST['pc_library_option_label']) ? sanitize_text_field($_POST['pc_library_option_label']) : '';
+        $option_name = isset($_POST['pc_library_option_name']) ? sanitize_text_field($_POST['pc_library_option_name']) : '';
+    $option_type = isset($_POST['pc_library_option_type']) ? sanitize_key($_POST['pc_library_option_type']) : 'text';
+        $product_name = isset($_POST['pc_library_product_name']) ? sanitize_text_field($_POST['pc_library_product_name']) : '';
+        $product_variation = isset($_POST['pc_library_product_variation']) ? sanitize_text_field($_POST['pc_library_product_variation']) : '';
+        $is_required = !empty($_POST['pc_library_is_required']);
+        $help_text = isset($_POST['pc_library_help_text']) ? sanitize_textarea_field($_POST['pc_library_help_text']) : '';
+        $raw_choices = isset($_POST['pc_library_choices']) && is_array($_POST['pc_library_choices']) ? $_POST['pc_library_choices'] : [];
+
+        if ($option_label === '' || $option_name === '') {
+            return [
+                'success' => false,
+                'message' => __('Option label and name are required to save a library entry.', 'product-customizer-for-woocommerce'),
+                'entry_id' => $entry_id,
+            ];
+        }
+
+        $allowed_types = ['text', 'number', 'dropdown', 'radio', 'checkbox', 'swatch'];
+        if (!in_array($option_type, $allowed_types, true)) {
+            $option_type = 'text';
+        }
+        $choices = $this->sanitize_library_choices($raw_choices, $option_type);
+
+        if ($this->option_type_requires_choices($option_type) && empty($choices)) {
+            return [
+                'success' => false,
+                'message' => __('Please add at least one choice for this option type.', 'product-customizer-for-woocommerce'),
+                'entry_id' => $entry_id,
+            ];
+        }
+
+        $data = [
+            'id' => $entry_id,
+            'option_label' => $option_label,
+            'option_name' => $option_name,
+            'option_type' => $option_type,
+            'is_required' => $is_required,
+            'help_text' => $help_text,
+            'choices' => $choices,
+            'product_name' => $product_name,
+            'product_variation' => $product_variation,
+        ];
+
+        $result = PC_Library_Manager::instance()->save_item($data);
+
+        if (!$result) {
+            return [
+                'success' => false,
+                'message' => __('We could not save this library entry. Please try again.', 'product-customizer-for-woocommerce'),
+                'entry_id' => $entry_id,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'message' => $entry_id ? __('Library entry updated.', 'product-customizer-for-woocommerce') : __('Library entry added.', 'product-customizer-for-woocommerce'),
+            'entry_id' => (int) $result,
+        ];
     }
 
     private function save_licensing_settings() {
@@ -464,6 +732,150 @@ class PC_Admin_Dashboard {
             </span>
         </label>
         <?php
+    }
+
+    private function render_library_choice_fields($choices) {
+        if (empty($choices) || !is_array($choices)) {
+            $choices = [['label' => '', 'value' => '', 'price' => '', 'default' => false, 'image_url' => '']];
+        }
+
+        $output = '';
+        $iterator = 0;
+        foreach ($choices as $index => $choice) {
+            $normalized_index = is_numeric($index) ? (int) $index : $iterator;
+            $output .= $this->render_library_choice_row($normalized_index, $choice);
+            $iterator++;
+        }
+
+        return $output;
+    }
+
+    private function render_library_choice_row($index, $choice) {
+        $label = isset($choice['label']) ? $choice['label'] : '';
+        $value = isset($choice['value']) ? $choice['value'] : '';
+        $price = isset($choice['price']) ? $choice['price'] : '';
+        $default = !empty($choice['default']);
+        $image_url = isset($choice['image_url']) ? $choice['image_url'] : '';
+
+        ob_start();
+        ?>
+        <div class="pc-library-choice" data-index="<?php echo esc_attr($index); ?>">
+            <div class="pc-library-choice__grid">
+                <div class="pc-library-field">
+                    <label><?php esc_html_e('Label', 'product-customizer-for-woocommerce'); ?></label>
+                    <input type="text" name="pc_library_choices[<?php echo esc_attr($index); ?>][label]" value="<?php echo esc_attr($label); ?>" placeholder="<?php esc_attr_e('Visible text', 'product-customizer-for-woocommerce'); ?>">
+                </div>
+                <div class="pc-library-field">
+                    <label><?php esc_html_e('Value', 'product-customizer-for-woocommerce'); ?></label>
+                    <input type="text" name="pc_library_choices[<?php echo esc_attr($index); ?>][value]" value="<?php echo esc_attr($value); ?>" placeholder="<?php esc_attr_e('Stored value (optional)', 'product-customizer-for-woocommerce'); ?>">
+                </div>
+                <div class="pc-library-field pc-library-field--price">
+                    <label><?php esc_html_e('Price Adjustment', 'product-customizer-for-woocommerce'); ?></label>
+                    <input type="number" name="pc_library_choices[<?php echo esc_attr($index); ?>][price]" value="<?php echo esc_attr($price); ?>" step="0.01" placeholder="0.00">
+                </div>
+                <div class="pc-library-field pc-library-field--checkbox">
+                    <label>
+                        <input type="checkbox" name="pc_library_choices[<?php echo esc_attr($index); ?>][default]" value="1" <?php checked($default); ?>>
+                        <span><?php esc_html_e('Default choice', 'product-customizer-for-woocommerce'); ?></span>
+                    </label>
+                </div>
+                <div class="pc-library-field pc-library-field--image">
+                    <label><?php esc_html_e('Image URL', 'product-customizer-for-woocommerce'); ?></label>
+                    <input type="text" name="pc_library_choices[<?php echo esc_attr($index); ?>][image_url]" value="<?php echo esc_attr($image_url); ?>" placeholder="https://...">
+                </div>
+                <div class="pc-library-field pc-library-field--actions">
+                    <button type="button" class="button-link pc-library-remove-choice"><?php esc_html_e('Remove', 'product-customizer-for-woocommerce'); ?></button>
+                </div>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    private function calculate_next_choice_index($choices) {
+        if (empty($choices) || !is_array($choices)) {
+            return 1;
+        }
+
+        $max = -1;
+        foreach ($choices as $index => $choice) {
+            if (is_numeric($index)) {
+                $max = max($max, (int) $index);
+            }
+        }
+
+        return $max + 1;
+    }
+
+    private function sanitize_library_choices($choices, $option_type) {
+        if (empty($choices) || !is_array($choices)) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ($choices as $choice) {
+            $label = isset($choice['label']) ? sanitize_text_field($choice['label']) : '';
+            $value = isset($choice['value']) ? sanitize_text_field($choice['value']) : '';
+            $price_raw = isset($choice['price']) ? (string) $choice['price'] : '';
+            $price = $price_raw === '' ? '' : (float) $price_raw;
+            $default = !empty($choice['default']);
+            $image_url = isset($choice['image_url']) ? esc_url_raw($choice['image_url']) : '';
+
+            if ($label === '' && $value === '') {
+                continue;
+            }
+
+            $sanitized[] = [
+                'label' => $label,
+                'value' => $value,
+                'price' => $price,
+                'default' => $default,
+                'image_url' => $image_url,
+            ];
+        }
+
+        if (empty($sanitized)) {
+            return [];
+        }
+
+        if ($option_type !== 'swatch') {
+            foreach ($sanitized as &$choice) {
+                $choice['image_url'] = '';
+            }
+            unset($choice);
+        }
+
+        if (in_array($option_type, ['dropdown', 'radio', 'swatch'], true)) {
+            $default_found = false;
+            foreach ($sanitized as $index => $choice) {
+                if ($choice['default']) {
+                    if ($default_found) {
+                        $sanitized[$index]['default'] = false;
+                    } else {
+                        $default_found = true;
+                    }
+                }
+            }
+
+            if (!$default_found && !empty($sanitized)) {
+                $sanitized[0]['default'] = true;
+            }
+        }
+
+        return $sanitized;
+    }
+
+    private function option_type_requires_choices($option_type) {
+        return in_array($option_type, ['dropdown', 'radio', 'checkbox', 'swatch'], true);
+    }
+
+    private function format_datetime($datetime) {
+        if (empty($datetime)) {
+            return '';
+        }
+
+        $format = get_option('date_format') . ' ' . get_option('time_format');
+        return mysql2date($format, $datetime, true);
     }
 
     private function sanitize_format_string($value) {

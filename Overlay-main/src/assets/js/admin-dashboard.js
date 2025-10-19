@@ -12,35 +12,53 @@
             return;
         }
 
-        navButtons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                var targetId = button.getAttribute('data-target');
-                if (!targetId) {
-                    return;
-                }
+        function activatePanel(targetId, sourceButton) {
+            if (!targetId) {
+                return;
+            }
 
-                navButtons.forEach(function (btn) {
-                    btn.classList.remove('is-active');
-                });
-                panels.forEach(function (panel) {
-                    panel.classList.remove('is-active');
-                });
+            navButtons.forEach(function (btn) {
+                btn.classList.toggle('is-active', btn === sourceButton || btn.getAttribute('data-target') === targetId);
+            });
 
-                button.classList.add('is-active');
-
-                var targetPanel = document.getElementById(targetId);
-                if (targetPanel) {
-                    targetPanel.classList.add('is-active');
-                    if (typeof targetPanel.focus === 'function') {
-                        try {
-                            targetPanel.focus();
-                        } catch (err) {
-                            // Ignore focus errors in unsupported browsers.
-                        }
+            panels.forEach(function (panel) {
+                var isTarget = panel.id === targetId;
+                panel.classList.toggle('is-active', isTarget);
+                if (isTarget && typeof panel.focus === 'function') {
+                    try {
+                        panel.focus();
+                    } catch (err) {
+                        // Ignore focus errors if focus is not supported.
                     }
                 }
             });
+        }
+
+        navButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                activatePanel(button.getAttribute('data-target'), button);
+            });
         });
+
+        var dashboard = document.querySelector('.pc-admin-dashboard');
+        var initialPanel = dashboard ? dashboard.getAttribute('data-pc-active-panel') : '';
+        var initialButton = null;
+
+        if (initialPanel) {
+            navButtons.forEach(function (button) {
+                if (button.getAttribute('data-target') === initialPanel) {
+                    initialButton = button;
+                }
+            });
+        }
+
+        if (!initialButton && navButtons.length) {
+            initialButton = navButtons[0];
+        }
+
+        if (initialButton) {
+            activatePanel(initialButton.getAttribute('data-target'), initialButton);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', initNavigation);

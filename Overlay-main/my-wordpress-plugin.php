@@ -89,6 +89,7 @@ final class Product_Customizer_Plugin {
         require_once PC_PLUGIN_DIR . 'src/admin/database.php';
         require_once PC_PLUGIN_DIR . 'src/admin/settings-manager.php';
         require_once PC_PLUGIN_DIR . 'src/admin/licensing-manager.php';
+    require_once PC_PLUGIN_DIR . 'src/admin/library-manager.php';
         require_once PC_PLUGIN_DIR . 'src/admin/admin-dashboard.php';
         require_once PC_PLUGIN_DIR . 'src/admin/settings.php';
         require_once PC_PLUGIN_DIR . 'src/admin/product-options.php';
@@ -145,17 +146,19 @@ final class Product_Customizer_Plugin {
      * Runs when plugins are loaded.
      */
     public function on_plugins_loaded() {
-        // Check if WooCommerce is active
-        if (!class_exists('WooCommerce')) {
+        $woocommerce_active = class_exists('WooCommerce');
+
+        if (!$woocommerce_active) {
             add_action('admin_notices', [$this, 'woocommerce_missing_notice']);
-            return;
         }
 
-        // Initialize all plugin components only after WooCommerce is confirmed active
-        $this->init_components();
-        
-        // Additional initialization for WooCommerce integration
-        add_action('init', [$this, 'init_woocommerce_integration'], 20);
+        // Initialize plugin components (with graceful fallback when WooCommerce is missing)
+        $this->init_components($woocommerce_active);
+
+        if ($woocommerce_active) {
+            // Additional initialization for WooCommerce integration
+            add_action('init', [$this, 'init_woocommerce_integration'], 20);
+        }
 
         // Version change detection (update) -> trigger wizard redirect
         if (is_admin()) {
@@ -179,20 +182,24 @@ final class Product_Customizer_Plugin {
     /**
      * Initialize all the core components of the plugin.
      */
-    public function init_components() {
+    public function init_components($woocommerce_active = true) {
         // Initialize settings manager first
         $settings_manager = PC_Settings_Manager::instance();
         // Initialize licensing manager so filters apply everywhere
         PC_Licensing_Manager::instance();
+        // Ensure library manager is available for dashboards and ajax
+        PC_Library_Manager::instance();
 
         if (is_admin()) {
             new PC_Admin_Dashboard();
             new PC_Settings();
-            PC_Product_Options::instance();
+            if ($woocommerce_active) {
+                PC_Product_Options::instance();
+            }
         }
         
         // Initialize frontend for all requests
-        if (class_exists('PC_Frontend')) {
+        if ($woocommerce_active && class_exists('PC_Frontend')) {
             PC_Frontend::instance();
         }
         
