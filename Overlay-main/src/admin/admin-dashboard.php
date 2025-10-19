@@ -23,6 +23,15 @@ class PC_Admin_Dashboard {
             'dashicons-art',
             56
         );
+
+        add_submenu_page(
+            'woocommerce',
+            __('Product Customizer', 'product-customizer-for-woocommerce'),
+            __('Product Customizer', 'product-customizer-for-woocommerce'),
+            $this->get_required_capability(),
+            self::MENU_SLUG,
+            [$this, 'render_page']
+        );
     }
 
     public function enqueue_assets($hook) {
