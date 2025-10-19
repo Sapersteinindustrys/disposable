@@ -474,6 +474,6 @@ class PC_Admin_Dashboard {
     }
 
     private function get_required_capability() {
-        return current_user_can('manage_woocommerce') ? 'manage_woocommerce' : 'manage_options';
+        return class_exists('WooCommerce') ? 'manage_woocommerce' : 'manage_options';
     }
 }
